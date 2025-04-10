@@ -16,6 +16,38 @@ from transformers.modeling_utils import is_flash_attn_2_available
 from functools import partial
 
 
+def memory_efficient_attention(query, key, value, p):
+    """ This code is taken from https://facebookresearch.github.io/xformers/components/ops.html
+        A simplified PyTorch implementation of memory-efficient attention.
+        Assumes inputs are already reshaped to 4D [batch, heads, seq_len, head_dim].
+        This implementation is SLOWER and LESS MEMORY-EFFICIENT than xformers,
+        and does NOT SUPPORT attn_bias.
+
+            Args:
+                query (Tensor): shape (batch, heads, seq_len, head_dim)
+                key (Tensor): shape (batch, heads, seq_len, head_dim)
+                value (Tensor): shape (batch, heads, seq_len, head_dim)
+                p (float): dropout probability. Default: 0.0 (no dropout)
+                attn_bias:  NOT SUPPORTED IN THIS FALLBACK.
+                scale (float, optional): scaling factor for the dot product. If None,
+                    defaults to 1 / sqrt(head_dim).
+            Returns:
+                Tensor: shape (batch, heads, seq_len, head_dim)
+    """
+    attn_bias = None
+    scale = 1.0 / query.shape[-1] ** 0.5
+    query = query * scale
+    query = query.transpose(1, 2)
+    key = key.transpose(1, 2)
+    value = value.transpose(1, 2)
+    attn = query @ key.transpose(-2, -1)
+    if attn_bias is not None:
+        attn = attn + attn_bias
+    attn = attn.softmax(-1)
+    attn = F.dropout(attn, p)
+    attn = attn @ value
+    return attn.transpose(1, 2).contiguous()
+
 if is_flash_attn_2_available():
     from flash_attn import flash_attn_qkvpacked_func
 
@@ -133,8 +165,6 @@ class Attention(nn.Module):
         self.proj_drop = nn.Dropout(proj_drop) if proj_drop > 0. else nn.Identity()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        from xformers.ops import memory_efficient_attention
-
         B, N, C = x.shape
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, self.head_dim)
 
