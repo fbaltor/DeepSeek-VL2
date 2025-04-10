@@ -156,7 +156,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--model_path", type=str, required=True,
+    parser.add_argument("--model_path", type=str, required=False,
                         default="deepseek-ai/deepseek-vl2",
                         help="model name or local path to the model")
     parser.add_argument("--chunk_size", type=int, default=-1,

@@ -18,3 +18,6 @@ colorama==0.4.5
 Pygments==2.12.0
 markdown==3.4.1
 SentencePiece==0.1.96
+
+# fixed numpy to 1.x
+numpy==1.26.4
